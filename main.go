@@ -13,6 +13,7 @@ func main() {
 		windowW, windowH   = 1080, 720
 		background         = "grass_3.png"
 		hero               = "bug_small.png"
+		heroDead           = "bug_small_dead.png"
 		heroSize           = 100
 		heroShadow         = "bug_small_shadow.png"
 		heroHighDx         = 50
@@ -32,10 +33,14 @@ func main() {
 		tongueH            = 16
 		tongueOutTime      = 10
 		frogMouthY         = 20 // y-offset from frog center to mouth
-		frogReactionTime   = 20
 		frogAttackDist     = 400
 		frogTongueCooldown = 70
 	)
+
+	// frogCountInCurrentLevel is increased whenever the player kills all frogs
+	frogCountInCurrentLevel := 0
+	// frogReactionTime is decreased for every won level
+	frogReactionTime := 20
 
 	heroX, heroY := 0.0, 0.0
 	heroOffset := 0.0
@@ -44,48 +49,76 @@ func main() {
 	rockTimer := 0
 	var rocks []rock
 	var frogs []frog
-	frogs = make([]frog, 3)
-	for i := range frogs {
-		frogs[i].x = float64(rand.Intn(2*windowW) - windowW)
-		frogs[i].y = float64(rand.Intn(2*windowH) - windowH)
-		frogs[i].life = 3
-		frogs[i].tongueTimer = -99999
-	}
 	lastHeroPositions := make([][2]float64, frogReactionTime)
-	for i := range lastHeroPositions {
-		lastHeroPositions[i] = [2]float64{9999999, 9999999}
-	}
+	dead := false
 
-	draw.RunWindow("Hungry Birthday!", windowW, windowH, func(window draw.Window) {
+	newGame := func() {
+		if len(frogs) == 0 {
+			// player won the last game
+			frogCountInCurrentLevel++
+			frogReactionTime--
+			if frogReactionTime < 3 {
+				frogReactionTime = 3
+			}
+		}
+		heroX, heroY = 0.0, 0.0
+		heroOffset = 0.0
+		rotation = 0.0
+		speed = 0.0
+		rockTimer = 0
+		rocks = nil
+		frogs = make([]frog, frogCountInCurrentLevel)
+		for i := range frogs {
+			frogs[i].x = float64(rand.Intn(2*windowW) - windowW)
+			frogs[i].y = float64(rand.Intn(2*windowH) - windowH)
+			frogs[i].life = 3
+			frogs[i].tongueTimer = 0
+		}
+		for i := range lastHeroPositions {
+			lastHeroPositions[i] = [2]float64{9999999, 9999999}
+		}
+		dead = false
+	}
+	newGame()
+
+	draw.RunWindow("Hungry Birthday! Drop Rocks with CTRL", windowW, windowH, func(window draw.Window) {
 		if window.WasKeyPressed(draw.KeyEscape) {
 			window.Close()
 		}
 
-		if window.IsKeyDown(draw.KeyLeft) {
-			rotation -= dRotation
-		}
-		if window.IsKeyDown(draw.KeyRight) {
-			rotation += dRotation
+		if window.WasKeyPressed(draw.KeyF2) {
+			newGame()
+			return
 		}
 
-		if window.IsKeyDown(draw.KeyUp) {
-			speed += acceleration
-			if speed > maxSpeed {
-				speed = maxSpeed
+		if !dead {
+			if window.IsKeyDown(draw.KeyLeft) {
+				rotation -= dRotation
 			}
-		} else {
-			speed -= acceleration * 0.5
-			if speed < 0 {
-				speed = 0
+			if window.IsKeyDown(draw.KeyRight) {
+				rotation += dRotation
+			}
+
+			if window.IsKeyDown(draw.KeyUp) {
+				speed += acceleration
+				if speed > maxSpeed {
+					speed = maxSpeed
+				}
+			} else {
+				speed -= acceleration * 0.5
+				if speed < 0 {
+					speed = 0
+				}
+			}
+
+			if window.WasKeyPressed(draw.KeyLeftControl) || window.WasKeyPressed(draw.KeyRightControl) {
+				if rockTimer <= 0 {
+					rockTimer = rockDelay
+					rocks = append(rocks, rock{heroX, heroY, rand.Intn(360), 1.0})
+				}
 			}
 		}
 
-		if window.WasKeyPressed(draw.KeyLeftControl) || window.WasKeyPressed(draw.KeyRightControl) {
-			if rockTimer <= 0 {
-				rockTimer = rockDelay
-				rocks = append(rocks, rock{heroX, heroY, rand.Intn(360), 1.0})
-			}
-		}
 		rockTimer--
 		for i := 0; i < len(rocks); i++ {
 			if rocks[i].height <= 0 {
@@ -126,6 +159,14 @@ func main() {
 					frogs[i].tongueTimer = tongueOutTime
 					frogs[i].tongueX = lastHeroPositions[0][0]
 					frogs[i].tongueY = lastHeroPositions[0][1]
+				}
+			}
+			if frogs[i].tongueTimer > 0 {
+				dx := frogs[i].tongueX - heroX
+				dy := frogs[i].tongueY - heroY
+				if math.Hypot(dx, dy) < 20 {
+					dead = true
+					speed = 0
 				}
 			}
 		}
@@ -193,15 +234,34 @@ func main() {
 		hdy, hdx := math.Sincos(heroOffset)
 		hdy *= 4
 		hdx *= 4
-		window.DrawImageFileRotated(heroShadow, round(hx+hdx), round(hy+hdy), round(rotation))
+		if dead {
+			hdx, hdy = 0, 0
+		}
+		if !dead {
+			window.DrawImageFileRotated(heroShadow, round(hx+hdx), round(hy+hdy), round(rotation))
+		}
 		// draw objects
 		for _, r := range rocks {
 			x, y := hx-(heroX-r.x)+rockSize/2, hy-(heroY-r.y)+rockSize/2
 			window.DrawImageFileRotated(rockImage, round(x-heroHighDx*r.height), round(y-heroHighDy*r.height), r.rotation)
 		}
-		window.DrawImageFileRotated(hero, round(hx+hdx-heroHighDx), round(hy+hdy-heroHighDy), round(rotation))
-		window.FillRect(0, 0, 180, 30, draw.White)
-		window.DrawText(fmt.Sprintf("%d Frogs Remaining", len(frogs)), 12, 7, draw.Black)
+		heroImage := hero
+		if dead {
+			heroImage = heroDead
+		}
+		window.DrawImageFileRotated(heroImage, round(hx+hdx-heroHighDx), round(hy+hdy-heroHighDy), round(rotation))
+		window.FillRect(0, 0, 220, 30, draw.White)
+		if dead {
+			window.DrawText("You're dead! Press F2", 15, 7, draw.Black)
+		} else if len(frogs) == 0 {
+			window.DrawText("You win! Press F2", 32, 7, draw.Black)
+		} else {
+			frogText := "Frogs"
+			if len(frogs) == 1 {
+				frogText = "Frog"
+			}
+			window.DrawText(fmt.Sprintf("%d %s Remaining", len(frogs), frogText), 32, 7, draw.Black)
+		}
 	})
 }
 
