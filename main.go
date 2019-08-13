@@ -30,10 +30,11 @@ func main() {
 		frogHurtSize       = 223
 		tongue             = "tongue.png"
 		tongueH            = 16
+		tongueOutTime      = 10
 		frogMouthY         = 20 // y-offset from frog center to mouth
-		frogReactionTime   = 30
-		frogAttackDist     = 300
-		frogTongueCooldown = 90
+		frogReactionTime   = 20
+		frogAttackDist     = 400
+		frogTongueCooldown = 70
 	)
 
 	heroX, heroY := 0.0, 0.0
@@ -122,7 +123,7 @@ func main() {
 				dx := frogs[i].x - lastHeroPositions[0][0]
 				dy := frogs[i].y - lastHeroPositions[0][1]
 				if math.Hypot(dx, dy) < frogAttackDist {
-					frogs[i].tongueTimer = 5
+					frogs[i].tongueTimer = tongueOutTime
 					frogs[i].tongueX = lastHeroPositions[0][0]
 					frogs[i].tongueY = lastHeroPositions[0][1]
 				}
@@ -166,13 +167,21 @@ func main() {
 
 			// draw tongue
 			if f.tongueTimer > 0 {
+				// the tongue forms a line from (x,y) to (toX,toY)
+				x := ix + frogSize/2
+				y := iy + frogSize/2 + frogMouthY
+				toX := x + round(f.tongueX-f.x) - heroHighDx
+				toY := y + round(f.tongueY-f.y) - heroHighDy
+				tongueW := round(math.Hypot(float64(toY-y), float64(toX-x)))
+				angle := math.Atan2(float64(toY-y), float64(toX-x))
+				deg := round(angle / math.Pi * 180)
 				window.DrawImageFileTo(
 					tongue,
-					ix+frogSize/2,
-					iy+frogMouthY+(frogSize-tongueH)/2,
-					500,
+					(x+toX-tongueW)/2,
+					(y+toY-tongueH)/2,
+					tongueW,
 					tongueH,
-					0,
+					deg,
 				)
 			}
 		}
