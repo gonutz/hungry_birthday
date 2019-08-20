@@ -51,6 +51,7 @@ func main() {
 	var frogs []frog
 	lastHeroPositions := make([][2]float64, frogReactionTime)
 	dead := false
+	var markerTimer int
 
 	newGame := func() {
 		if len(frogs) == 0 {
@@ -78,6 +79,7 @@ func main() {
 			lastHeroPositions[i] = [2]float64{9999999, 9999999}
 		}
 		dead = false
+		markerTimer = 0
 	}
 	newGame()
 
@@ -181,6 +183,8 @@ func main() {
 		copy(lastHeroPositions[0:], lastHeroPositions[1:])
 		lastHeroPositions[len(lastHeroPositions)-1] = [2]float64{heroX, heroY}
 
+		markerTimer++
+
 		// draw background in modulo space
 		dx, dy := round(-heroX)%windowW, round(-heroY)%windowH
 		if dx < 0 {
@@ -261,6 +265,30 @@ func main() {
 				frogText = "Frog"
 			}
 			window.DrawText(fmt.Sprintf("%d %s Remaining", len(frogs), frogText), 32, 7, draw.Black)
+		}
+
+		// draw arrow indicating closest frog
+		closest := -1
+		minSqrDist := 0.0
+		for i, f := range frogs {
+			dist := (heroX-f.x)*(heroX-f.x) + (heroY-f.y)*(heroY-f.y)
+			if closest == -1 || dist < minSqrDist {
+				closest = i
+				minSqrDist = dist
+			}
+		}
+		if closest != -1 {
+			f := frogs[closest]
+			dx, dy := f.x-heroX, f.y-heroY
+			if dx*dx+dy*dy > windowH*windowH/3 {
+				scale := 1.0 / math.Hypot(dx, dy)
+				dx *= scale
+				dy *= scale
+				move := 20 * math.Sin(float64(markerTimer)*0.1)
+				x := round(windowW/2 - heroHighDx + dx*(70+move))
+				y := round(windowH/2 - heroHighDy + dy*(70+move))
+				window.DrawImageFileTo(frogImage, x, y, 20, 20, 0)
+			}
 		}
 	})
 }
