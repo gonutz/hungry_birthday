@@ -130,7 +130,8 @@ func main() {
 			if rocks[i].height <= 0 {
 				rocks[i].height = 0
 				for f, frog := range frogs {
-					dx := frog.x - rocks[i].x
+					// add 30 to the frog's x center, this works better
+					dx := frog.x + 30 - rocks[i].x
 					dy := frog.y - rocks[i].y
 					if math.Hypot(dx, dy) < frogSize/2 {
 						rocks = append(rocks[:i], rocks[i+1:]...)
